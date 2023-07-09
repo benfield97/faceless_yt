@@ -4,8 +4,7 @@ import praw
 import json
 import os 
 import pandas as pd
-
- 
+import unicodedata
 
 reddit = praw.Reddit(
     client_id="FMgswHRMtITBLNDWhd-_Wg",
@@ -13,6 +12,9 @@ reddit = praw.Reddit(
     user_agent="No_Concert1617"
 )
 
+
+def clean_text(text):
+    return unicodedata.normalize('NFKD', text).encode('ascii', 'ignore').decode()
 
 
 def scrape_subreddit(subreddit_name):
@@ -28,13 +30,14 @@ def scrape_subreddit(subreddit_name):
 
         post_comments = []
         for comment in sorted_comments[:10]:
+            cleaned_comment = clean_text(comment.body)
             post_comments.append({
-                "Comment": comment.body,
+                "Comment": cleaned_comment,
                 "Upvotes": comment.score
             })
 
         data.append({
-            "Title": post.title,
+            "Title": clean_text(post.title),
             "Score": post.score,
             "URL": post.url,
             "Comments": post_comments
@@ -54,4 +57,3 @@ df.to_json("data/posts.json", orient="records")
 # Print the contents of the file
 with open('data/posts.json', 'r') as f:
     print(json.dumps(json.load(f), indent=4))
-
