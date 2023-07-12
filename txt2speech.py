@@ -3,10 +3,11 @@ import json
 from elevenlabs import voices, generate
 import wave
 import re
+from pydub import AudioSegment
+from mutagen.mp3 import MP3
 
-
-# this works! need a better selection method for the content though
-os.environ['ELEVEN_API_KEY'] = 'ab6f1c5edd135c28345d10c208e1b5d5'
+# Get the Eleven Labs API key
+eleven_api = os.getenv('ELEVEN_API_KEY')
 
 # Constants
 AUDIO_FORMAT = "audio/wav"
@@ -28,6 +29,17 @@ def write_audio_file(file_path, audio_data):
         wav_file.setframerate(SAMPLE_RATE)
         wav_file.writeframes(audio_data)
 
+def convert_wav_to_mp3(wav_file, mp3_file):
+    # Check if the output file already exists
+    if not os.path.isfile(mp3_file):
+        audio = AudioSegment.from_wav(wav_file)
+        audio.export(mp3_file, format="mp3")
+        os.remove(wav_file)  # This line deletes the original WAV file
+    # Calculate the duration of the mp3 file
+    mp3_audio = MP3(mp3_file)
+    duration = int(mp3_audio.info.length)
+    return duration
+
 # Load posts
 with open('data/posts.json', 'r') as f:
     posts = json.load(f)
@@ -40,14 +52,28 @@ for post in posts[:1]:
     # Create a folder for the post
     post_folder_path = os.path.join(BASE_FOLDER_PATH, sanitize_filename(post['Title']))
     os.makedirs(post_folder_path, exist_ok=True)
-    
+
     # Generate and write audio for the post title
     audio = generate(text=post['Title'], voice=voices[0])
     audio_file_path = os.path.join(post_folder_path, "title.wav")
     write_audio_file(audio_file_path, audio)
+    mp3_duration = convert_wav_to_mp3(audio_file_path, audio_file_path.replace('.wav', '.mp3'))
+    
+    # Store the path and duration of the mp3 file
+    post['TitleMp3Path'] = audio_file_path.replace('.wav', '.mp3')
+    post['TitleDuration'] = mp3_duration
 
     # Generate and write audio for each comment
     for i, comment in enumerate(post['Comments']):
         audio = generate(text=comment['Comment'], voice=voices[0])
         audio_file_path = os.path.join(post_folder_path, f"comment_{i+1}.wav")
         write_audio_file(audio_file_path, audio)
+        mp3_duration = convert_wav_to_mp3(audio_file_path, audio_file_path.replace('.wav', '.mp3'))
+
+        # Store the path and duration of the mp3 file
+        comment['Mp3Path'] = audio_file_path.replace('.wav', '.mp3')
+        comment['Duration'] = mp3_duration
+
+# Save the updated posts back to the JSON file
+with open('data/posts.json', 'w') as f:
+    json.dump(posts, f, indent=4)
