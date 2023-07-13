@@ -27,6 +27,14 @@ def format_date(created_utc):
     else:
         return f"{difference.days} day ago" if difference.days == 1 else f"{difference.days} days ago"
 
+def get_user_input(prompt):
+    while True:
+        user_input = input(prompt).lower()
+        if user_input in ['y', 'n']:
+            return user_input == 'y'
+        else:
+            print("Invalid input. Please enter 'y' or 'n'.")
+
 def scrape_subreddit(subreddit_name):
     subreddit = reddit.subreddit(subreddit_name)
     data = []
@@ -40,7 +48,16 @@ def scrape_subreddit(subreddit_name):
 
         post_comments = []
         for comment in sorted_comments[:10]:
+            # Ignore deleted comments
+            if comment.body in ['deleted', '[deleted]', '[removed]']:
+                continue
+
             cleaned_comment = clean_text(comment.body)
+
+            # Remove Edit: part
+            if 'Edit:' in cleaned_comment:
+                cleaned_comment = cleaned_comment.split('Edit:')[0]
+
             post_comments.append({
                 "Comment": cleaned_comment,
                 "Upvotes": comment.score,
@@ -48,27 +65,42 @@ def scrape_subreddit(subreddit_name):
                 "Comment Posted Time": format_date(comment.created_utc)
             })
 
-        data.append({
+        # Build post data
+        post_data = {
             "Title": clean_text(post.title),
             "Score": post.score,
             "URL": post.url,
             "Post Author": post.author.name if post.author else 'deleted',
             "Post Date": format_date(post.created_utc),
             "Comments": post_comments
-        })
+        }
+
+        data.append(post_data)
 
     return pd.DataFrame(data)
 
 
 df = scrape_subreddit("AskReddit")
 
-# Create 'data' subfolder if it doesn't exist
-if not os.path.exists('faceless_yt/data'):
-    os.makedirs('data')
-
 # Save the DataFrame in the 'data' subfolder
-df.to_json("faceless_yt/data/posts.json", orient="records")
+df.to_json("data/posts.json", orient="records")
 
-# Print the contents of the file
-with open('faceless_yt/data/posts.json', 'r') as f:
-    print(json.dumps(json.load(f), indent=4))
+# Open the file and allow the user to select or remove posts
+with open('data/posts.json', 'r') as f:
+    posts = json.load(f)
+
+kept_posts = []
+for post in posts:
+    print(f"Post title: {post['Title']}")
+    if get_user_input("Keep this post in the JSON? (y/n): "):
+        kept_comments = []
+        for comment in post['Comments']:
+            print(f"Comment: {comment['Comment']}")
+            if get_user_input("Keep this comment in the JSON? (y/n): "):
+                kept_comments.append(comment)
+        post['Comments'] = kept_comments
+        kept_posts.append(post)
+
+# Write the kept posts back to the JSON file
+with open('data/posts.json', 'w') as f:
+    json.dump(kept_posts, f, indent=4)

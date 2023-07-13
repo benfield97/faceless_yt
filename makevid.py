@@ -104,3 +104,4 @@ final_video.write_videofile("final_output.mp4")
 # have the voice be a little more lively. Experiment with eleven settings
 # get the pipeline finished. Have a final video get exported 
 # add sound effect to template
+#account for [deleted] and [removed]
